@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
         column.addView(subtitle, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).also { topMargin = dp(8) })
+        ).apply { topMargin = dp(8) })
 
         // Spacer
         column.addView(createSpacer(dp(32)))
@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
         }
         column.addView(hostInput, LinearLayout.LayoutParams(
             dp(300), ViewGroup.LayoutParams.WRAP_CONTENT
-        ).also { topMargin = dp(12) })
+        ).apply { topMargin = dp(12) })
 
         val portInput = EditText(this).apply {
             hint = "30142"
@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
         }
         column.addView(portInput, LinearLayout.LayoutParams(
             dp(300), ViewGroup.LayoutParams.WRAP_CONTENT
-        ).also { topMargin = dp(12) })
+        ).apply { topMargin = dp(12) })
 
         column.addView(createSpacer(dp(24)))
 
@@ -153,7 +153,7 @@ class MainActivity : ComponentActivity() {
         }
         column.addView(connectBtn, LinearLayout.LayoutParams(
             dp(300), dp(48)
-        ).also { topMargin = dp(12) })
+        ).apply { topMargin = dp(12) })
 
         val footer = TextView(this).apply {
             text = "Make sure pi-web is running on your laptop:\ncd pi-mobile && node server/index.js"
@@ -164,7 +164,7 @@ class MainActivity : ComponentActivity() {
         column.addView(footer, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).also { topMargin = dp(24) })
+        ).apply { topMargin = dp(24) })
 
         return wrapper
     }
