@@ -3,6 +3,7 @@ package com.pimobile.app
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.activity.enableEdgeToEdge
 import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
@@ -24,16 +25,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        window.decorView.systemUiVisibility = (
-            android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-            android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-            android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-        )
         setContent {
             val prefs = LocalContext.current.getSharedPreferences("pi-mobile", Context.MODE_PRIVATE)
 
@@ -71,10 +64,7 @@ class MainActivity : ComponentActivity() {
             window.decorView.systemUiVisibility = (
                 android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
                 android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
             )
         }
     }
