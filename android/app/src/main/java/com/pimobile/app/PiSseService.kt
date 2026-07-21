@@ -125,41 +125,46 @@ class PiSseService : Service() {
 
     /**
      * 拉取刚结束的会话信息，取 firstMessage（用户原始 prompt）作为通知正文，
-     * 让用户知道「哪个任务」完成了。拉取失败则回退到通用的「任务完成」。
+     * 让用户知道「哪个任务」完成了。返回 (label, sessionId)，拉取失败则返回 (null, null)。
      */
-    private fun fetchSessionLabel(ids: Set<String>): String? {
-        if (ids.isEmpty()) return null
-        val c = client ?: return null
+    private fun fetchSessionInfo(ids: Set<String>): Pair<String?, String?> {
+        if (ids.isEmpty()) return null to null
+        val c = client ?: return null to null
         val baseUrl = getSharedPreferences("pi-mobile", Context.MODE_PRIVATE)
-            .getString("url", null) ?: return null
+            .getString("url", null) ?: return null to null
         return try {
             val req = Request.Builder().url(baseUrl.trimEnd('/') + "/api/sessions").build()
             c.newCall(req).execute().use { resp ->
-                val arr = JSONObject(resp.body!!.string()).optJSONArray("sessions") ?: return null
+                val arr = JSONObject(resp.body!!.string()).optJSONArray("sessions") ?: return null to null
                 for (i in 0 until arr.length()) {
                     val s = arr.getJSONObject(i)
-                    if (ids.contains(s.optString("id"))) {
+                    val sid = s.optString("id")
+                    if (ids.contains(sid)) {
                         val first = s.optString("firstMessage", "")
-                        if (first.isNotBlank() && first != "(no messages)") return first.replace('\n', ' ').take(50)
-                        val name = s.optString("name", "")
-                        if (name.isNotBlank()) return name.take(50)
-                        val cwd = s.optString("cwd", "")
-                        return cwd.substringAfterLast('/').ifBlank { null }
+                        val label = when {
+                            first.isNotBlank() && first != "(no messages)" -> first.replace('\n', ' ').take(50)
+                            s.optString("name").isNotBlank() -> s.optString("name").take(50)
+                            else -> s.optString("cwd", "").substringAfterLast('/').ifBlank { null }
+                        }
+                        return label to sid
                     }
                 }
-                null
+                null to null
             }
         } catch (e: Exception) {
-            Log.w(TAG, "fetch session label failed: ${e.message}")
-            null
+            Log.w(TAG, "fetch session info failed: ${e.message}")
+            null to null
         }
     }
 
     private fun notifyTaskFinished(ids: Set<String>) {
-        val label = fetchSessionLabel(ids) ?: "任务完成"
-        Log.d(TAG, "task finished → notify: $label")
+        val (label, sessionId) = fetchSessionInfo(ids)
+        val text = label ?: "任务完成"
+        Log.d(TAG, "task finished → notify: $text (session=$sessionId)")
+        // 带 session deep link，点击直接打开刚结束的会话（pi-web AppShell 读 ?session=）
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (sessionId != null) data = android.net.Uri.parse("pi-mobile://session/$sessionId")
         }
         val pi = PendingIntent.getActivity(
             this, 0, openIntent,
@@ -167,7 +172,7 @@ class PiSseService : Service() {
         )
         val n = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Pi Mobile")
-            .setContentText("✅ $label")
+            .setContentText("✅ $text")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pi)
             .setAutoCancel(true)
@@ -181,7 +186,7 @@ class PiSseService : Service() {
             val mgr = getSystemService(NotificationManager::class.java)
             if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
                 mgr.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "任务完成通知", NotificationManager.IMPORTANCE_DEFAULT)
+                    NotificationChannel(CHANNEL_ID, "任务完成通知", NotificationManager.IMPORTANCE_LOW)
                 )
             }
         }
@@ -215,7 +220,7 @@ class PiSseService : Service() {
 
     companion object {
         private const val TAG = "PiSseService"
-        private const val CHANNEL_ID = "pi-mobile-task"
+        private const val CHANNEL_ID = "pi-mobile-task-v2"
         private const val NOTIF_ID = 1001
         private const val NOTIF_FG_ID = 1002
 

@@ -2,6 +2,7 @@ package com.pimobile.app
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +11,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -26,6 +30,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 class MainActivity : Activity() {
     private var webView: WebView? = null
     private var connectView: View? = null
+    private var errorView: View? = null
+    private var lastUrl: String? = null
 
     private companion object {
         const val COL_BG = 0xFF1A1A2E.toInt()
@@ -67,7 +73,25 @@ class MainActivity : Activity() {
                     loadWithOverviewMode = true
                     useWideViewPort = true
                 }
-                webViewClient = WebViewClient() // 默认 client，让链接在 WebView 内打开
+                webViewClient = object : WebViewClient() {
+                    // 加载成功隐藏错误页
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        errorView?.visibility = View.GONE
+                    }
+                    // 网络/资源错误（DNS、连接拒绝、超时）
+                    override fun onReceivedError(
+                        view: WebView?, request: WebResourceRequest?, error: WebResourceError?
+                    ) {
+                        // 只对主帧错误显示错误页，避免子资源 404 也弹出
+                        if (request?.isForMainFrame == true) showErrorPage()
+                    }
+                    // HTTP 错误码（4xx/5xx）
+                    override fun onReceivedHttpError(
+                        view: WebView?, request: WebResourceRequest?, errorResponse: android.webkit.WebResourceResponse?
+                    ) {
+                        if (request?.isForMainFrame == true) showErrorPage()
+                    }
+                }
             }
         }
         root.addView(webView)
@@ -95,6 +119,7 @@ class MainActivity : Activity() {
         Log.d("PiMobile", "onCreate: reused=$reused currentUrl=$currentUrl needLoad=$needLoad")
         if (needLoad && savedUrl != null) {
             connectView?.visibility = View.GONE
+            lastUrl = savedUrl
             webView?.loadUrl(savedUrl)
         } else if (reused && !currentUrl.isNullOrBlank()) {
             connectView?.visibility = View.GONE
@@ -117,6 +142,20 @@ class MainActivity : Activity() {
         super.onResume()
         webView?.onResume()
         webView?.resumeTimers()
+    }
+
+    // 处理通知点击的 deep link：pi-mobile://session/<id> → baseUrl/?session=<id>
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val sid = intent.data?.lastPathSegment
+        if (sid != null) {
+            val base = getSharedPreferences("pi-mobile", Context.MODE_PRIVATE).getString("url", null)
+            if (!base.isNullOrBlank()) {
+                val url = base.trimEnd('/') + "/?session=" + sid
+                lastUrl = url
+                webView?.loadUrl(url)
+            }
+        }
     }
 
     override fun onPause() {
@@ -173,6 +212,7 @@ class MainActivity : Activity() {
                 val url = "$proto://$host:$port"
                 connectView?.visibility = View.GONE
                 prefs.edit().putString("url", url).apply()
+                lastUrl = url
                 webView?.loadUrl(url)
             }
         }, rowParams(top = dp(12), height = dp(48), width = dp(300)))
@@ -199,6 +239,37 @@ class MainActivity : Activity() {
         LinearLayout.LayoutParams(width, height).apply { topMargin = top }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun showErrorPage() {
+        if (errorView == null) {
+            errorView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(COL_BG)
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                addView(TextView(this@MainActivity).apply {
+                    text = "连不上 pi-web"; textSize = 20f; setTextColor(COL_TEXT)
+                    gravity = Gravity.CENTER
+                })
+                addView(TextView(this@MainActivity).apply {
+                    text = "检查地址、端口和网络后重试"; textSize = 14f; setTextColor(COL_MUTED)
+                    gravity = Gravity.CENTER
+                }, rowParams(top = dp(8)))
+                addView(Button(this@MainActivity).apply {
+                    text = "重试"; setTextColor(COL_TEXT); setBackgroundColor(COL_ACCENT)
+                    setOnClickListener {
+                        errorView?.visibility = View.GONE
+                        lastUrl?.let { webView?.loadUrl(it) }
+                    }
+                }, rowParams(top = dp(24), height = dp(48), width = dp(160)))
+            }
+            (webView?.parent as? ViewGroup)?.addView(errorView)
+        }
+        errorView?.visibility = View.VISIBLE
+    }
 
     private fun applyFullscreen() {
         window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN)
